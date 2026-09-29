@@ -37,7 +37,10 @@ data:
   engine: tartunlp_tts
   options:
     voice: "mari"
+    speed: 1.2
 ```
+
+`voice` ja `speed` on valikulised. Kui neid ei anta, kasutatakse integratsiooni seadetes määratud väärtusi.
 
 ## Seadistamine
 
@@ -46,6 +49,9 @@ Vaikimisi kasutatakse URL-i `https://api.tartunlp.ai/text-to-speech/v2`. Kui soo
 1. Integratsiooni lisamisel
 2. Või hiljem seadete alt:
    - Settings -> Devices & Services -> Tartu NLP TTS -> Configure
+
+### Kõne kiirus
+Kõne kiirus on kordaja vahemikus `0.5` kuni `2`, kus `1` on tavaline kiirus (vaikimisi). Kiirust saab määrata integratsiooni lisamisel ja hiljem seadete alt (Configure). Üksikpäringu jaoks saab selle üle kirjutada `tts.speak` teenuse `options.speed` väärtusega.
 
 ### Saadaolevad hääled
 

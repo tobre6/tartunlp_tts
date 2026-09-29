@@ -7,6 +7,7 @@
                 "data": {
                     "language": "Language",
                     "voice": "Voice",
+                    "speed": "Speech speed (0.5 to 2, normal 1)",
                     "base_url": "API URL"
                 }
             }
@@ -20,6 +21,7 @@
                 "data": {
                     "language": "Language",
                     "voice": "Voice",
+                    "speed": "Speech speed (0.5 to 2, normal 1)",
                     "base_url": "API URL"
                 }
             }
