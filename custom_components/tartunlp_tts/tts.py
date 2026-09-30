@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import aiohttp
 from typing import Any
 
@@ -13,10 +14,11 @@ from homeassistant.components.tts import (
     TextToSpeechEntity,
     Voice,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback, split_entity_id
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.const import CONF_LANGUAGE
+from homeassistant.const import CONF_LANGUAGE, Platform
 
 from .const import (
     DOMAIN,
@@ -45,6 +47,77 @@ def _clamp_speed(value: Any) -> float:
         return DEFAULT_SPEED
     return min(max(speed, MIN_SPEED), MAX_SPEED)
 
+
+_LEGACY_ID = re.compile(r"^tartunlp_tts_(\d+)$")
+
+
+def _legacy_num(value: str) -> int | None:
+    """Return N for a legacy "tartunlp_tts_N" identifier, else None."""
+    match = _LEGACY_ID.match(value)
+    return int(match.group(1)) if match else None
+
+
+@callback
+def _async_prepare_registry(hass: HomeAssistant) -> None:
+    """Give every config entry exactly one registry entity keyed by its entry_id.
+
+    Earlier versions derived the unique ID from the number of config entries, so
+    all entries ended up with the same ID. Move each entry's lowest legacy entity
+    to the new unique ID (keeping its entity_id), drop its unreachable duplicates
+    and pre-register entities for entries that have none. New entity IDs continue
+    above the highest legacy number, so a removed ID is never handed to another
+    voice. This runs synchronously, so concurrent entry setups cannot interleave.
+    """
+    registry = er.async_get(hass)
+    platform_entities = [
+        reg for reg in registry.entities.values()
+        if reg.platform == DOMAIN and reg.domain == Platform.TTS
+    ]
+
+    max_num = 0
+    for reg in platform_entities:
+        for value in (reg.unique_id, split_entity_id(reg.entity_id)[1]):
+            num = _legacy_num(value)
+            if num is not None:
+                max_num = max(max_num, num)
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+
+    for entry in entries:
+        if registry.async_get_entity_id(Platform.TTS, DOMAIN, entry.entry_id):
+            continue
+        legacy = sorted(
+            (
+                reg for reg in platform_entities
+                if reg.config_entry_id == entry.entry_id
+                and _legacy_num(reg.unique_id) is not None
+            ),
+            key=lambda reg: _legacy_num(reg.unique_id),
+        )
+        if not legacy:
+            continue
+        keep, *duplicates = legacy
+        registry.async_update_entity(keep.entity_id, new_unique_id=entry.entry_id)
+        for duplicate in duplicates:
+            registry.async_remove(duplicate.entity_id)
+        _LOGGER.info(
+            "Migrated %s to unique ID %s, removed %s",
+            keep.entity_id, entry.entry_id, [dup.entity_id for dup in duplicates],
+        )
+
+    for entry in entries:
+        if registry.async_get_entity_id(Platform.TTS, DOMAIN, entry.entry_id):
+            continue
+        max_num += 1
+        registry.async_get_or_create(
+            Platform.TTS,
+            DOMAIN,
+            entry.entry_id,
+            config_entry=entry,
+            suggested_object_id=f"tartunlp_tts_{max_num}",
+        )
+
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_LANG, default=DEFAULT_LANG): vol.In(["et"]),
@@ -67,13 +140,10 @@ async def async_setup_entry(
     speed = config_entry.data.get(CONF_SPEED, DEFAULT_SPEED)
     base_url = config_entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
 
-    # Get the number of existing entries
-    entry_num = len([
-        entry for entry in hass.config_entries.async_entries(DOMAIN)
-        if entry.entry_id != config_entry.entry_id
-    ]) + 1
+    # The registry entry prepared here decides the entity_id
+    _async_prepare_registry(hass)
 
-    async_add_entities([TartuNLPTTSEntity(hass, config_entry, language, voice, speed, base_url, entry_num)], True)
+    async_add_entities([TartuNLPTTSEntity(hass, config_entry, language, voice, speed, base_url, config_entry.entry_id)], True)
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -88,7 +158,7 @@ async def async_setup_platform(
     base_url = config.get(CONF_BASE_URL, DEFAULT_BASE_URL)
 
     # For YAML-based setup, use yaml suffix
-    async_add_entities([TartuNLPTTSEntity(hass, None, language, voice, speed, base_url, "yaml")], True)
+    async_add_entities([TartuNLPTTSEntity(hass, None, language, voice, speed, base_url, "tartunlp_tts_yaml", "tts.tartunlp_tts_yaml")], True)
 
 class TartuNLPTTSEntity(TextToSpeechEntity):
     """The TartuNLP TTS API provider."""
@@ -101,7 +171,8 @@ class TartuNLPTTSEntity(TextToSpeechEntity):
         voice: str,
         speed: float,
         base_url: str,
-        entry_num: str | int,
+        unique_id: str,
+        entity_id: str | None = None,
     ) -> None:
         """Initialize TartuNLP TTS provider."""
         self.hass = hass
@@ -110,11 +181,11 @@ class TartuNLPTTSEntity(TextToSpeechEntity):
         self._speed = _clamp_speed(speed)
         self._base_url = base_url
         
-        # Set simple entity_id format
-        self.entity_id = f"tts.tartunlp_tts_{entry_num}"
-        
-        # Set unique_id for internal use
-        self._attr_unique_id = f"tartunlp_tts_{entry_num}"
+        # Only YAML presets its entity_id; config entries get it from the registry
+        if entity_id is not None:
+            self.entity_id = entity_id
+
+        self._attr_unique_id = unique_id
         
         # Set descriptive name for display
         domain = get_domain_from_url(base_url)

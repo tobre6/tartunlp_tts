@@ -29,7 +29,7 @@ When releasing, bump `version` in `custom_components/tartunlp_tts/manifest.json`
 
 ### Things to know before changing behavior
 
-- Entity IDs and unique IDs are derived from the count of other config entries at setup time (`tts.tartunlp_tts_<n>`), or the suffix `yaml` for YAML setup. They are not tied to the entry ID, so adding or removing entries can shift numbering.
+- Unique IDs are the config entry ID. On setup, `_async_prepare_registry` in `tts.py` migrates older count based IDs (`tartunlp_tts_<n>`) to the entry ID, keeping the existing `entity_id`, and pre-registers new entities as `tts.tartunlp_tts_<n>` numbered above the highest legacy number. YAML setup uses `tartunlp_tts_yaml`.
 - Entries created before speed existed have no `speed` in `entry.data`; always read it with a `DEFAULT_SPEED` fallback.
 - Design notes for larger changes live in `docs/`.
 - Only language `et` is supported; the language selector exists in the forms but offers a single choice.
