@@ -7,6 +7,6 @@
   "documentation": "https://api.tartunlp.ai/text-to-speech/docs",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/tsebukas/tartunlp_tts/issues",
-  "requirements": ["aiohttp"],
+  "requirements": [],
   "version": "0.13.0"
 }
