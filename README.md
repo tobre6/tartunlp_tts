@@ -68,6 +68,14 @@ Kõne kiirus on kordaja vahemikus `0.5` kuni `2`, kus `1` on tavaline kiirus (va
 - tambet
 - vesta
 
+## Kaastöötajad
+
+- [Tõnis Tobre (@tobre6)](https://github.com/tobre6): kõne kiiruse valik ja Configure-dialoogi parandus ([#1](https://github.com/tsebukas/tartunlp_tts/pull/1))
+
+## Litsents
+
+[MIT](LICENSE)
+
 ## Probleemidest teatamine
 
 Kui leiad vea või sul on soovitusi, palun [ava uus Issue GitHubis](https://github.com/tsebukas/tartunlp_tts/issues).
